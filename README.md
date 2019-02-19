@@ -19,7 +19,7 @@ Thus, if you need to use the nRF51 for the new bluetooth qualification, you SHOU
 
 ## Nordic SDK version working with Bluetooth 4.2 (Softdevice S130 v2.0.1).
 
-You can use either SDK 11.0.0 or SDK 12.3.0 (the last SDK working with NRF51) with S130 v2.0.1.
+You can use either SDK 11.0.0 or SDK 12.3.0 (the last SDK working with NRF51) with S130 v2.0.1.  Here is the demo example SES project on SDK 12.3.0 for nRF51 series.
 
 
 ## Requirements
