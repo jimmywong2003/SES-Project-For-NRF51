@@ -22,3 +22,9 @@ Thus, if you need to use the nRF51 for the new bluetooth qualification, you SHOU
 You can use either SDK 11.0.0 or SDK 12.3.0 (the last SDK working with NRF51) with S130 v2.0.1.
 
 
+## Requirements
+nRF5 SDK version 12.3.0
+nRF51-DK 
+
+To compile it, clone the repository in the \nRF5_SDK_12.3.0_d7731ad\ folder. If you download the zip, place each of the project folders of this repository into the \nRF5_SDK_12.3.0_d7731ad\ folder.
+
