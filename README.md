@@ -2,8 +2,6 @@
 
 ## Segger Embedded Studio Project for nRF51 development
 
-
-
 According to the bluetooth sig official web page (Source: Bluetooth SIG Email)
 
 The Bluetooth Special Interest Group (SIG) recently announced their decision to deprecate and withdraw older versions of Bluetooth Core specifications from v2.0 to v4.1. Firstly, there is no need to panic. Secondly, here is what you need to know.
