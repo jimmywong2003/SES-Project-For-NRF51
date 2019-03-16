@@ -58,6 +58,9 @@
       <file file_name="../../../../../../components/drivers_nrf/common/nrf_drv_common.c" />
       <file file_name="../../../../../../components/drivers_nrf/gpiote/nrf_drv_gpiote.c" />
       <file file_name="../../../../../../components/drivers_nrf/uart/nrf_drv_uart.c" />
+      <file file_name="../../../../../../components/drivers_nrf/adc/nrf_drv_adc.c" />
+      <file file_name="../../../../../../components/drivers_nrf/ppi/nrf_drv_ppi.c" />
+      <file file_name="../../../../../../components/drivers_nrf/timer/nrf_drv_timer.c" />
     </folder>
     <folder Name="nRF_Libraries">
       <file file_name="../../../../../../components/libraries/button/app_button.c" />

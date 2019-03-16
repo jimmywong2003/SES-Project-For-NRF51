@@ -220,7 +220,7 @@
 // <e> ADC_ENABLED - nrf_drv_adc - Driver for ADC peripheral (nRF51)
 //==========================================================
 #ifndef ADC_ENABLED
-#define ADC_ENABLED 0
+#define ADC_ENABLED 1
 #endif
 #if  ADC_ENABLED
 // <o> ADC_CONFIG_IRQ_PRIORITY  - Interrupt priority
@@ -1251,7 +1251,7 @@
 // <e> PPI_ENABLED - nrf_drv_ppi - PPI peripheral driver
 //==========================================================
 #ifndef PPI_ENABLED
-#define PPI_ENABLED 0
+#define PPI_ENABLED 1
 #endif
 #if  PPI_ENABLED
 // <e> PPI_CONFIG_LOG_ENABLED - Enables logging in the module.
@@ -2243,7 +2243,7 @@
 // <e> TIMER_ENABLED - nrf_drv_timer - TIMER periperal driver
 //==========================================================
 #ifndef TIMER_ENABLED
-#define TIMER_ENABLED 0
+#define TIMER_ENABLED 1
 #endif
 #if  TIMER_ENABLED
 // <o> TIMER_DEFAULT_CONFIG_FREQUENCY  - Timer frequency if in Timer mode
@@ -2260,7 +2260,7 @@
 // <9=> 31.25 kHz 
 
 #ifndef TIMER_DEFAULT_CONFIG_FREQUENCY
-#define TIMER_DEFAULT_CONFIG_FREQUENCY 0
+#define TIMER_DEFAULT_CONFIG_FREQUENCY 3
 #endif
 
 // <o> TIMER_DEFAULT_CONFIG_MODE  - Timer mode or operation
@@ -2314,7 +2314,7 @@
  
 
 #ifndef TIMER2_ENABLED
-#define TIMER2_ENABLED 0
+#define TIMER2_ENABLED 1
 #endif
 
 // <q> TIMER3_ENABLED  - Enable TIMER3 instance

@@ -68,6 +68,10 @@
 #include "app_scheduler.h"
 #include "app_timer_appsh.h"
 
+#include "nrf_drv_adc.h"
+#include "nrf_drv_ppi.h"
+#include "nrf_drv_timer.h"
+
 #define NRF_LOG_MODULE_NAME "APP"
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
@@ -123,7 +127,14 @@ static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID;                        
 
 static ble_uuid_t m_adv_uuids[] = {{BLE_UUID_NUS_SERVICE, NUS_SERVICE_UUID_TYPE}};                        /**< Universally unique service identifier. */
 
+#define ADC_BUFFER_SIZE 6                                                           //Size of buffer for ADC samples. Buffer size should be multiple of number of adc channels located.
+#define ADC_SAMPLE_RATE             1000                                        //ADC sampling frequencyng frequency in ms
 
+static nrf_adc_value_t adc_buffer[ADC_BUFFER_SIZE];                                 /**< ADC buffer. */
+static nrf_ppi_channel_t m_ppi_channel;
+static const nrf_drv_timer_t m_timer = NRF_DRV_TIMER_INSTANCE(2);
+static uint8_t adc_event_counter = 0;
+static uint32_t number_of_adc_channels;
 
 #define ONE_SECOND_INTERVAL      APP_TIMER_TICKS(1000, APP_TIMER_PRESCALER) /**< One Second timer interval (ticks). */
 APP_TIMER_DEF(m_one_second_timer_id);                          /**< One Second Timer. */
@@ -665,6 +676,109 @@ static void buttons_leds_init(bool * p_erase_bonds)
         *p_erase_bonds = (startup_event == BSP_EVENT_CLEAR_BONDING_DATA);
 }
 
+/**
+ * @brief TIMER interrupt handler.
+ */
+void timer_handler(nrf_timer_event_t event_type, void* p_context)
+{
+}
+
+/**
+ * @brief ADC interrupt handler.
+ * Prints ADC results on hardware UART and over BLE via the NUS service.
+ */
+static void adc_event_handler(nrf_drv_adc_evt_t const * p_event)
+{
+        uint8_t adc_result[ADC_BUFFER_SIZE*2];
+
+        if (p_event->type == NRF_DRV_ADC_EVT_DONE)
+        {
+                adc_event_counter++;
+                printf("  adc event counter: %d\r\n", adc_event_counter);
+                for (uint32_t i = 0; i < p_event->data.done.size; i++)
+                {
+                        printf("ADC value channel %d: %d\r\n", (int)(i % number_of_adc_channels), p_event->data.done.p_buffer[i]);
+                        adc_result[(i*2)] = p_event->data.done.p_buffer[i] >> 8;
+                        adc_result[(i*2)+1] = p_event->data.done.p_buffer[i];
+                }
+                if(ADC_BUFFER_SIZE <= 10)
+                {
+                        ble_nus_string_send(&m_nus, &adc_result[0], ADC_BUFFER_SIZE*2);
+                }
+                APP_ERROR_CHECK(nrf_drv_adc_buffer_convert(adc_buffer,ADC_BUFFER_SIZE));
+                LEDS_INVERT(BSP_LED_3_MASK);
+        }
+}
+
+void adc_sampling_event_enable(void)
+{
+        ret_code_t err_code = nrf_drv_ppi_channel_enable(m_ppi_channel);
+        APP_ERROR_CHECK(err_code);
+}
+
+void adc_sampling_event_disable(void)
+{
+        ret_code_t err_code = nrf_drv_ppi_channel_disable(m_ppi_channel);
+        APP_ERROR_CHECK(err_code);
+}
+
+/*@brief ADC initialization.
+ */
+static void adc_config(void)
+{
+        ret_code_t ret_code;
+
+        //Initialize ADC
+        nrf_drv_adc_config_t config = NRF_DRV_ADC_DEFAULT_CONFIG;
+        ret_code = nrf_drv_adc_init(&config, adc_event_handler);
+        APP_ERROR_CHECK(ret_code);
+
+        //Configure and enable ADC channel 0
+        static nrf_drv_adc_channel_t m_channel_0_config = NRF_DRV_ADC_DEFAULT_CHANNEL(NRF_ADC_CONFIG_INPUT_2);
+        m_channel_0_config.config.config.input = NRF_ADC_CONFIG_SCALING_INPUT_ONE_THIRD;
+        nrf_drv_adc_channel_enable(&m_channel_0_config);
+
+        //Configure and enable ADC channel 1
+        static nrf_drv_adc_channel_t m_channel_1_config = NRF_DRV_ADC_DEFAULT_CHANNEL(NRF_ADC_CONFIG_INPUT_6);
+        m_channel_1_config.config.config.input = NRF_ADC_CONFIG_SCALING_INPUT_ONE_THIRD;
+        nrf_drv_adc_channel_enable(&m_channel_1_config);
+
+        //Configure and enable ADC channel 2
+        static nrf_drv_adc_channel_t m_channel_2_config = NRF_DRV_ADC_DEFAULT_CHANNEL(NRF_ADC_CONFIG_INPUT_7);
+        m_channel_2_config.config.config.input = NRF_ADC_CONFIG_SCALING_INPUT_ONE_THIRD;
+        nrf_drv_adc_channel_enable(&m_channel_2_config);
+
+        number_of_adc_channels = 3; //Set equal to the number of configured ADC channels, for the sake of UART output.
+}
+
+/**
+ * @brief Setup sampling events.
+ */
+void adc_sampling_event_init(void)
+{
+        ret_code_t err_code;
+        err_code = nrf_drv_ppi_init();
+        APP_ERROR_CHECK(err_code);
+
+        nrf_drv_timer_config_t timer_cfg = NRF_DRV_TIMER_DEFAULT_CONFIG;
+        err_code = nrf_drv_timer_init(&m_timer, &timer_cfg, timer_handler);
+        APP_ERROR_CHECK(err_code);
+
+        /* setup m_timer for compare event */
+        uint32_t time_ticks = nrf_drv_timer_ms_to_ticks(&m_timer, ADC_SAMPLE_RATE);
+        nrf_drv_timer_extended_compare(&m_timer, NRF_TIMER_CC_CHANNEL0, time_ticks, NRF_TIMER_SHORT_COMPARE0_CLEAR_MASK, true);
+        nrf_drv_timer_enable(&m_timer);
+
+        uint32_t timer_compare_event_addr = nrf_drv_timer_compare_event_address_get(&m_timer, NRF_TIMER_CC_CHANNEL0);
+        uint32_t adc_sample_event_addr = nrf_drv_adc_start_task_get();
+
+        /* setup ppi channel so that timer compare event is triggering sample task in SAADC */
+        err_code = nrf_drv_ppi_channel_alloc(&m_ppi_channel);
+        APP_ERROR_CHECK(err_code);
+
+        err_code = nrf_drv_ppi_channel_assign(m_ppi_channel, timer_compare_event_addr, adc_sample_event_addr); //NRF_ADC->TASKS_START);
+        APP_ERROR_CHECK(err_code);
+}
 
 /**@brief Function for placing the application in low power state while waiting for events.
  */
@@ -698,6 +812,12 @@ int main(void)
         printf("\r\SM SDK 12.3 example nUART Start!\r\n");
         err_code = ble_advertising_start(BLE_ADV_MODE_FAST);
         APP_ERROR_CHECK(err_code);
+
+
+        adc_sampling_event_init();
+        adc_config();
+        APP_ERROR_CHECK(nrf_drv_adc_buffer_convert(adc_buffer,ADC_BUFFER_SIZE));
+        adc_sampling_event_enable();
 
         // Enter main loop.
         for (;;)
