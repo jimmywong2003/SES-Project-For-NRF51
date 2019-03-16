@@ -72,6 +72,8 @@
       <file file_name="../../../../../../components/libraries/util/nrf_assert.c" />
       <file file_name="../../../../../../components/libraries/uart/retarget.c" />
       <file file_name="../../../../../../components/libraries/util/sdk_errors.c" />
+      <file file_name="../../../../../../components/libraries/timer/app_timer_appsh.c" />
+      <file file_name="../../../../../../components/libraries/scheduler/app_scheduler.c" />
     </folder>
     <folder Name="nRF_Log">
       <file file_name="../../../../../../components/libraries/log/src/nrf_log_backend_serial.c" />
