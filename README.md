@@ -24,10 +24,14 @@ There are multiple example projects.
 
 ## Enhance BLE modules 
 
-S130v2.0.1 doesn't support the LONG MTU and Data Length Extension.
+S130v2.0.1 doesn't support the LONG MTU and Data Length Extension.  I implemented a new API for sending data longer than MTU=23 (20 bytes payload).
 
-```		          // Send 256 bytes with MTU = 23 (each packet payload is 20 bytes).
-                err_code = ble_nus_send_file(&m_nus, dataBuffer, 256, 20);
+```		          
+      //uint32_t ble_nus_send_file(ble_nus_t * p_nus, uint8_t * p_data, uint32_t data_length, uint32_t max_packet_length)
+      
+      // Send 256 bytes with MTU = 23 (each packet payload is 20 bytes).
+      err_code = ble_nus_send_file(&m_nus, dataBuffer, 256, 20);
+```                
                 
                 
 ## Nordic SDK version working with Bluetooth 4.2 (Softdevice S130 v2.0.1).
