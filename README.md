@@ -1,8 +1,8 @@
-# SES_Project_for_nRF51
+# Segger Embedded Studio Project for nRF51 development
 
-## Segger Embedded Studio Project for nRF51 development
+## Motivation
 
-According to the bluetooth sig official web page (Source: Bluetooth SIG Email)
+According to the Bluetooth Sig official web page (Source: Bluetooth SIG Email)
 
 The Bluetooth Special Interest Group (SIG) recently announced their decision to deprecate and withdraw older versions of Bluetooth Core specifications from v2.0 to v4.1. Firstly, there is no need to panic. Secondly, here is what you need to know.
 
@@ -15,14 +15,22 @@ The Bluetooth Special Interest Group (SIG) recently announced their decision to 
 
 Thus, if you need to use the nRF51 for the new bluetooth qualification, you SHOULD use the Softdevice S130v2.0.1 for the qualification approval.
 
+## Example
+
+There are multiple example projects.
+
+* ble_app_uart_bas_schedule : BLE application with UART, Battery Service with App Scheduler (Baseline)
+
+
 ## Nordic SDK version working with Bluetooth 4.2 (Softdevice S130 v2.0.1).
 
-You can use either SDK 11.0.0 or SDK 12.3.0 (the last SDK working with NRF51) with S130 v2.0.1.  Here is the demo example SES project on SDK 12.3.0 for nRF51 series.
+You can use either SDK 12.3.0 (the last SDK working with NRF51) with S130 v2.0.1.  Here is the demo example SES project on SDK 12.3.0 for nRF51 series.
 
 
 ## Requirements
-nRF5 SDK version 12.3.0
-nRF51-DK 
+* nRF5 SDK version 12.3.0
+* nRF51 PCA10028 DK Board
+* Segger Embedded Studio 4.12 
 
 To compile it, clone the repository in the \nRF5_SDK_12.3.0_d7731ad\ folder. If you download the zip, place each of the project folders of this repository into the \nRF5_SDK_12.3.0_d7731ad\ folder.
 
