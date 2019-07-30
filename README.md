@@ -22,6 +22,14 @@ There are multiple example projects.
 * ble_app_uart_bas_schedule : BLE application with UART, Battery Service with App Scheduler (Baseline)
 
 
+## Enhance BLE modules 
+
+S130v2.0.1 doesn't support the LONG MTU and Data Length Extension.
+
+```		          // Send 256 bytes with MTU = 23 (each packet payload is 20 bytes).
+                err_code = ble_nus_send_file(&m_nus, dataBuffer, 256, 20);
+                
+                
 ## Nordic SDK version working with Bluetooth 4.2 (Softdevice S130 v2.0.1).
 
 You can use either SDK 12.3.0 (the last SDK working with NRF51) with S130 v2.0.1.  Here is the demo example SES project on SDK 12.3.0 for nRF51 series.
