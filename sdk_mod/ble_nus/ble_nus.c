@@ -50,6 +50,15 @@
 
 #define NUS_BASE_UUID                  {{0x9E, 0xCA, 0xDC, 0x24, 0x0E, 0xE5, 0xA9, 0xE0, 0x93, 0xF3, 0xA3, 0xB5, 0x00, 0x00, 0x40, 0x6E}} /**< Used vendor specific UUID. */
 
+#define NUS_MAX_DATA_LENGTH           0x100
+
+volatile uint32_t file_size = 0, file_pos = 0, m_max_data_length = BLE_NUS_MAX_TX_CHAR_LEN;
+static volatile bool nrf_error_resources = false;
+
+uint8_t * file_data;
+ble_nus_t * mp_nus;
+
+
 /**@brief Function for handling the @ref BLE_GAP_EVT_CONNECTED event from the S110 SoftDevice.
  *
  * @param[in] p_nus     Nordic UART Service structure.
@@ -225,6 +234,47 @@ static uint32_t tx_char_add(ble_nus_t * p_nus, const ble_nus_init_t * p_nus_init
 }
 
 
+static uint32_t push_data_packets(void)
+{
+        uint32_t return_code = NRF_SUCCESS;
+        uint32_t packet_length = m_max_data_length;
+        uint32_t packet_size = 0;
+
+        while(return_code == NRF_SUCCESS)
+        {
+                //printf("file_pos = %d, packet_size = %d\n", file_pos, packet_size);
+                //printf("\nb %d, %d, %d , %d\n", file_size, file_pos, packet_size, packet_length);
+
+                if((file_size - file_pos) > packet_length)
+                {
+                        packet_size = packet_length;
+                }
+                else if((file_size - file_pos) >= 0)
+                {
+                        packet_size = file_size - file_pos;
+                }
+                else
+                {
+                        packet_size = 0;
+                }
+
+                if(packet_size > 0)
+                {
+                        return_code = ble_nus_string_send(mp_nus, &file_data[file_pos], packet_size);
+                        if(return_code == NRF_SUCCESS)
+                        {
+                                file_pos += packet_size;
+                        }
+                }
+                else
+                {
+                        file_size = 0;
+                        break;
+                }
+        }
+        return return_code;
+}
+
 void ble_nus_on_ble_evt(ble_nus_t * p_nus, ble_evt_t * p_ble_evt)
 {
     if ((p_nus == NULL) || (p_ble_evt == NULL))
@@ -246,6 +296,14 @@ void ble_nus_on_ble_evt(ble_nus_t * p_nus, ble_evt_t * p_ble_evt)
             on_write(p_nus, p_ble_evt);
             break;
 
+        case BLE_EVT_TX_COMPLETE:
+        {
+                if(file_size > 0)
+                {
+                        push_data_packets();
+                }
+                nrf_error_resources = false;
+        } break;
         default:
             // No implementation needed.
             break;
@@ -297,6 +355,12 @@ uint32_t ble_nus_init(ble_nus_t * p_nus, const ble_nus_init_t * p_nus_init)
 uint32_t ble_nus_string_send(ble_nus_t * p_nus, uint8_t * p_string, uint16_t length)
 {
     ble_gatts_hvx_params_t hvx_params;
+        uint32_t err_code;
+
+        if(nrf_error_resources)
+        {
+                return NRF_ERROR_RESOURCES;
+        }
 
     VERIFY_PARAM_NOT_NULL(p_nus);
 
@@ -317,7 +381,50 @@ uint32_t ble_nus_string_send(ble_nus_t * p_nus, uint8_t * p_string, uint16_t len
     hvx_params.p_len  = &length;
     hvx_params.type   = BLE_GATT_HVX_NOTIFICATION;
 
-    return sd_ble_gatts_hvx(p_nus->conn_handle, &hvx_params);
+        err_code = sd_ble_gatts_hvx(p_nus->conn_handle, &hvx_params);
+
+        if(err_code == NRF_ERROR_RESOURCES)
+        {
+                nrf_error_resources = true;
+        }
+        return err_code;
 }
 
+
+uint32_t ble_nus_send_file(ble_nus_t * p_nus, uint8_t * p_data, uint32_t data_length, uint32_t max_packet_length)
+{
+        uint32_t err_code;
+
+        if ((p_nus->conn_handle == BLE_CONN_HANDLE_INVALID) || (!p_nus->is_notification_enabled))
+        {
+                err_code = NRF_ERROR_INVALID_STATE;
+                VERIFY_SUCCESS(err_code);
+                return NRF_ERROR_INVALID_STATE;
+}
+
+        if(file_size != 0)
+        {
+                return NRF_ERROR_BUSY;
+        }
+
+        if (data_length > NUS_MAX_DATA_LENGTH)
+        {
+                err_code = NRF_ERROR_INVALID_PARAM;
+                VERIFY_SUCCESS(err_code);
+                return NRF_ERROR_INVALID_PARAM;
+        }
+
+        file_size = data_length;
+        file_pos = 0;
+        file_data = p_data;
+        m_max_data_length = max_packet_length;
+        mp_nus = p_nus;
+
+        err_code = push_data_packets();
+
+        if(err_code != NRF_ERROR_RESOURCES)
+                return NRF_SUCCESS;
+
+        return err_code;
+}
 #endif // NRF_MODULE_ENABLED(BLE_NUS)

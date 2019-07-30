@@ -80,10 +80,13 @@
 #include "nrf_drv_saadc.h"
 #endif //ADC_PRESENT
 
+#include "nrf_crypto.h"
+#include "nrf_delay.h"
+#include "aes.h"
+
 #define NRF_LOG_MODULE_NAME "APP"
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
-
 
 #define IS_SRVC_CHANGED_CHARACT_PRESENT 0                                           /**< Include the service_changed characteristic. If not enabled, the server's database cannot be changed for the lifetime of the device. */
 
@@ -168,6 +171,51 @@ static uint8_t dataBuffer[256] = { \
 
 };
 
+#define LESC_DEBUG_MODE 0 /**< Set to 1 to use LESC debug keys, allows you to use a sniffer to inspect traffic. */
+#define LESC_MITM_NC 1    /**< Use MITM (Numeric Comparison). */
+
+#define BLE_GAP_LESC_P256_SK_LEN 32
+
+/**@brief GAP LE Secure Connections P-256 Private Key. */
+typedef struct
+{
+  uint8_t   sk[BLE_GAP_LESC_P256_SK_LEN];        /**< LE Secure Connections Elliptic Curve Diffie-Hellman P-256 Private Key in little-endian. */
+} ble_gap_lesc_p256_sk_t;
+
+
+#if LESC_DEBUG_MODE
+
+/**@brief Bluetooth SIG debug mode Private Key */
+__ALIGN(4) static const ble_gap_lesc_p256_sk_t m_debug_lesc_sk = {{0xbd,0x1a,0x3c,0xcd,0xa6,0xb8,0x99,0x58,0x99,0xb7,0x40,0xeb,0x7b,0x60,0xff,0x4a, \
+                                                 0x50,0x3f,0x10,0xd2,0xe3,0xb3,0xc9,0x74,0x38,0x5f,0xc5,0xa3,0xd4,0xf6,0x49,0x3f}};
+#else
+/**@brief Private Key: Replace with your own one, can be a random number or generated using a tool like OpenSSL */
+__ALIGN(4) static const ble_gap_lesc_p256_sk_t m_lesc_sk = {{0x4a,0xa3,0x74,0x4b,0xa9,0xfc,0x2a,0x3a,0x8e,0x5a,0xd5,0x15,0xf8,0xe3,0x3f,0xb0, \
+                                                 0x82,0x6c,0x98,0xf0,0x32,0x2a,0x51,0xee,0xb5,0x35,0x57,0x12,0xac,0x73,0x25,0x04}};
+#endif
+__ALIGN(4) static ble_gap_lesc_p256_pk_t m_lesc_pk;    /**< LESC ECC Public Key */
+__ALIGN(4) static ble_gap_lesc_dhkey_t m_lesc_dhkey;   /**< LESC ECC DH Key*/
+
+static nrf_crypto_key_t m_crypto_key_sk =
+{
+#if LESC_DEBUG_MODE
+    .p_le_data = (uint8_t *) m_debug_lesc_sk.sk,
+#else
+    .p_le_data = (uint8_t *) m_lesc_sk.sk,
+#endif
+    .len = sizeof(m_lesc_sk.sk)
+};
+static nrf_crypto_key_t m_crypto_key_pk =
+{
+    .p_le_data = (uint8_t *) m_lesc_pk.pk,
+    .len = sizeof(m_lesc_pk.pk)
+};
+static nrf_crypto_key_t m_crypto_key_dhkey =
+{
+    .p_le_data = (uint8_t *) m_lesc_dhkey.key,
+    .len = sizeof(m_lesc_dhkey.key)
+};
+
 /**@brief Macro to convert the result of ADC conversion in millivolts.
  *
  * @param[in]  ADC_VALUE   ADC result.
@@ -228,7 +276,7 @@ void adc_event_handler(nrf_drv_adc_evt_t const * p_event)
             APP_ERROR_HANDLER(err_code);
         }
         
-        nrf_drv_adc_uninit();
+        //nrf_drv_adc_uninit();
     }
 }
 
@@ -323,7 +371,7 @@ static void battery_level_meas_timeout_handler(void * p_context)
 {
     UNUSED_PARAMETER(p_context);
     #ifdef ADC_PRESENT
-    adc_configure();
+    //adc_configure();
     nrf_drv_adc_sample();
     #else // SAADC_PRESENT
     uint32_t err_code;
@@ -720,7 +768,6 @@ static void sys_evt_dispatch(uint32_t sys_evt)
 }
 
 
-
 /**@brief Function for the SoftDevice initialization.
  *
  * @details This function initializes the SoftDevice and the BLE event interrupt.
@@ -944,10 +991,47 @@ static void power_manage(void)
     APP_ERROR_CHECK(err_code);
 }
 
+static uint8_t plaintext[] = {0x6b, 0xc1, 0xbe, 0xe2, 0x2e, 0x40, 0x9f, 0x96, 0xe9, 0x3d, 0x7e, 0x11, 0x73, 0x93, 0x17, 0x2a};
+static uint8_t ciphertext[] = {0x3a, 0xd7, 0x7b, 0xb4, 0x0d, 0x7a, 0x36, 0x60, 0xa8, 0x9e, 0xca, 0xf3, 0x24, 0x66, 0xef, 0x97};
+
+static uint8_t buffer_encrypt[16];
+static uint8_t buffer_decrypt[16];
+
+static void test_encrypt_decrypt_ecb(void)
+{
+  uint8_t key[] = {0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c};
+  uint8_t in[]  = {0x6b, 0xc1, 0xbe, 0xe2, 0x2e, 0x40, 0x9f, 0x96, 0xe9, 0x3d, 0x7e, 0x11, 0x73, 0x93, 0x17, 0x2a};
+  uint8_t out[] = {0x3a, 0xd7, 0x7b, 0xb4, 0x0d, 0x7a, 0x36, 0x60, 0xa8, 0x9e, 0xca, 0xf3, 0x24, 0x66, 0xef, 0x97};
+  uint8_t buffer[16];
+
+  memcpy(key, m_crypto_key_dhkey.p_le_data, 16);
+  
+  NRF_LOG_HEXDUMP_INFO(key, 16);
+
+  NRF_LOG_INFO("ECB encrypt: ");
+
+  AES128_ECB_encrypt(plaintext, key, buffer_encrypt);
+
+  NRF_LOG_HEXDUMP_INFO(buffer_encrypt, 16);
+
+  NRF_LOG_INFO("ECB decrypt: ");
+
+  AES128_ECB_decrypt(buffer_encrypt, key, buffer_decrypt);
+
+  if(0 == strncmp((char*) plaintext, (char*) buffer_decrypt, 16))
+  {
+    NRF_LOG_INFO("SUCCESS!\n");
+  }
+  else
+  {
+    NRF_LOG_INFO("FAILURE!\n");
+  }
+}
 
 /**@brief Application main function.
  */
 int main(void)
+
 {
     uint32_t err_code;
     bool erase_bonds;
@@ -962,8 +1046,8 @@ int main(void)
 
     buttons_leds_init(&erase_bonds);
     ble_stack_init();
-    //adc_configure();
     scheduler_init();
+    adc_configure();
 
     gap_params_init();
     services_init();
@@ -974,8 +1058,47 @@ int main(void)
     NRF_LOG_INFO("SDK 12.3 Example with UART Start!\n");    
     err_code = ble_advertising_start(BLE_ADV_MODE_FAST);
     APP_ERROR_CHECK(err_code);
-
     timers_start();
+
+
+    // This is to generate the public key and shared secret key
+    {
+        static nrf_crypto_key_t peer_pk;
+
+        nrf_crypto_init();
+
+        NRF_LOG_INFO("Private Key\n");
+        //NRF_LOG_HEXDUMP_INFO(m_crypto_key_sk.p_le_data, m_crypto_key_sk.len);
+        
+        nrf_delay_ms(1000);
+
+        err_code = nrf_crypto_public_key_compute(NRF_CRYPTO_CURVE_SECP256R1, &m_crypto_key_sk, &m_crypto_key_pk);
+        APP_ERROR_CHECK(err_code);
+
+        NRF_LOG_INFO("Generate the Public Key\n");
+        //NRF_LOG_HEXDUMP_INFO(m_crypto_key_pk.p_le_data, m_crypto_key_pk.len);
+
+        //peer_pk.p_le_data = &p_ble_evt->evt.gap_evt.params.lesc_dhkey_request.p_pk_peer->pk[0];
+        peer_pk.len = BLE_GAP_LESC_P256_PK_LEN;
+
+        nrf_delay_ms(1000);
+
+        memcpy(peer_pk.p_le_data, m_crypto_key_pk.p_le_data, peer_pk.len);
+        err_code = nrf_crypto_shared_secret_compute(NRF_CRYPTO_CURVE_SECP256R1, &m_crypto_key_sk, &m_crypto_key_pk, &m_crypto_key_dhkey);
+        APP_ERROR_CHECK(err_code);
+
+        nrf_delay_ms(1000);
+
+        NRF_LOG_INFO("Shared Secret Key\n");
+        NRF_LOG_HEXDUMP_INFO(m_crypto_key_dhkey.p_le_data, m_crypto_key_dhkey.len);
+    }
+
+
+    // After get the shared secret key, it uses the ecb (AES128) for encrypt and decrypt the data
+    {
+        test_encrypt_decrypt_ecb();
+    }
+
 
     // Enter main loop.
     for (;;)
