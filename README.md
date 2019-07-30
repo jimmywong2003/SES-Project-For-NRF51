@@ -20,7 +20,7 @@ Thus, if you need to use the nRF51 for the new bluetooth qualification, you SHOU
 There are multiple example projects.
 
 * ble_app_uart_bas_schedule : BLE application with UART, Battery Service with App Scheduler (Baseline)
-
+* ble_app_uart_bas_ecdh_aes128 : BLE application with ECDH + AES128 for data protection 
 
 ## Enhance BLE modules 
 
