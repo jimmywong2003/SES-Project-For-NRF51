@@ -1028,10 +1028,73 @@ static void test_encrypt_decrypt_ecb(void)
   }
 }
 
+/**@brief Generate random number using SD calls. */
+static void sd_rand (uint8_t * buff, uint16_t len)
+{
+    uint8_t    bytes_available;
+    do
+    {
+        // wait for SD to acquire enough RNs
+        (void)sd_rand_application_bytes_available_get(&bytes_available);
+    } while (bytes_available < len);
+
+    (void)sd_rand_application_vector_get(buff, len);
+}
+
+static void generate_private_key(uint8_t * buff, uint16_t len)
+{
+    /* Regenerate keys. */
+    sd_rand (buff, len);
+}
+
+/** Length of random ID vector. Must be <= 32. */
+#define RANDOM_VECTOR_DEVICE_ID_SIZE        32    
+
+
+/**@brief Generate random number.
+ */
+static uint32_t random_vector_generate(uint8_t * p_buff, uint8_t size)
+{
+    uint32_t err_code;
+    uint8_t  bytes_available = 0;
+
+    nrf_drv_rng_bytes_available(&bytes_available);
+    uint8_t retries = 0;
+    
+//    while (bytes_available < size)
+//    {
+//        retries++;
+//        NRF_LOG_WARNING("Too few random bytes available. Trying again \r\n");
+//        nrf_drv_rng_bytes_available(&bytes_available);
+//        nrf_delay_ms(5);
+//        
+//        if (retries > 10)    // Return after n attempts.
+//        {
+//            return NRF_ERROR_TIMEOUT;
+//        }
+//    }
+    
+    NRF_LOG_INFO("Available random bytes: %d \r\n", bytes_available);
+
+    err_code = nrf_drv_rng_rand(p_buff, size);
+    APP_ERROR_CHECK(err_code);
+    
+    NRF_LOG_INFO("Random value (hex): ");
+    
+    for (uint8_t i = 0; i < size; i++)
+    {
+        NRF_LOG_RAW_INFO("%02x", p_buff[i]);
+    }
+    
+    NRF_LOG_RAW_INFO("\r\n");
+
+    return NRF_SUCCESS;
+}
+
+
 /**@brief Application main function.
  */
 int main(void)
-
 {
     uint32_t err_code;
     bool erase_bonds;
@@ -1048,6 +1111,9 @@ int main(void)
     ble_stack_init();
     scheduler_init();
     adc_configure();
+
+    err_code = nrf_drv_rng_init(NULL);
+    APP_ERROR_CHECK(err_code);
 
     gap_params_init();
     services_init();
@@ -1067,16 +1133,19 @@ int main(void)
 
         nrf_crypto_init();
 
-        NRF_LOG_INFO("Private Key\n");
-        //NRF_LOG_HEXDUMP_INFO(m_crypto_key_sk.p_le_data, m_crypto_key_sk.len);
+        NRF_LOG_INFO("Generate Private Key %d\n", m_crypto_key_sk.len);
         
+//        memset(m_crypto_key_sk.p_le_data, 0, m_crypto_key_sk.len);
+//        random_vector_generate(m_crypto_key_sk.p_le_data, m_crypto_key_sk.len);
+        NRF_LOG_HEXDUMP_INFO(m_crypto_key_sk.p_le_data, m_crypto_key_sk.len);
+
         nrf_delay_ms(1000);
 
         err_code = nrf_crypto_public_key_compute(NRF_CRYPTO_CURVE_SECP256R1, &m_crypto_key_sk, &m_crypto_key_pk);
         APP_ERROR_CHECK(err_code);
 
         NRF_LOG_INFO("Generate the Public Key\n");
-        //NRF_LOG_HEXDUMP_INFO(m_crypto_key_pk.p_le_data, m_crypto_key_pk.len);
+        NRF_LOG_HEXDUMP_INFO(m_crypto_key_pk.p_le_data, m_crypto_key_pk.len);
 
         //peer_pk.p_le_data = &p_ble_evt->evt.gap_evt.params.lesc_dhkey_request.p_pk_peer->pk[0];
         peer_pk.len = BLE_GAP_LESC_P256_PK_LEN;
