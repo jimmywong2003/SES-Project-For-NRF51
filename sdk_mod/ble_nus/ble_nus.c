@@ -58,6 +58,8 @@ static volatile bool nrf_error_resources = false;
 uint8_t * file_data;
 ble_nus_t * mp_nus;
 
+static uint16_t m_tx_packet_count = 0;
+
 
 /**@brief Function for handling the @ref BLE_GAP_EVT_CONNECTED event from the S110 SoftDevice.
  *
@@ -303,13 +305,23 @@ void ble_nus_on_ble_evt(ble_nus_t * p_nus, ble_evt_t * p_ble_evt)
                         push_data_packets();
                 }
                 nrf_error_resources = false;
+                if( m_tx_packet_count > 0)
+                {
+                    m_tx_packet_count--;
+                }
+                else
+                {
+                      if (p_nus->tx_complete_handler != NULL)
+                      {
+                          p_nus->tx_complete_handler();
+                      }
+                }
         } break;
         default:
             // No implementation needed.
             break;
     }
 }
-
 
 uint32_t ble_nus_init(ble_nus_t * p_nus, const ble_nus_init_t * p_nus_init)
 {
@@ -324,6 +336,8 @@ uint32_t ble_nus_init(ble_nus_t * p_nus, const ble_nus_init_t * p_nus_init)
     p_nus->conn_handle             = BLE_CONN_HANDLE_INVALID;
     p_nus->data_handler            = p_nus_init->data_handler;
     p_nus->is_notification_enabled = false;
+
+    p_nus->tx_complete_handler     = p_nus_init->tx_complete_handler;
 
     /**@snippet [Adding proprietary Service to S110 SoftDevice] */
     // Add a custom base UUID.
@@ -419,6 +433,14 @@ uint32_t ble_nus_send_file(ble_nus_t * p_nus, uint8_t * p_data, uint32_t data_le
         file_data = p_data;
         m_max_data_length = max_packet_length;
         mp_nus = p_nus;
+
+  
+        m_tx_packet_count = (data_length / max_packet_length) + 1;
+
+        if (data_length % max_packet_length == 0)
+        {
+              m_tx_packet_count++;
+        }
 
         err_code = push_data_packets();
 

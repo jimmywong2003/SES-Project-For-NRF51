@@ -78,6 +78,9 @@ typedef struct ble_nus_s ble_nus_t;
 /**@brief Nordic UART Service event handler type. */
 typedef void (*ble_nus_data_handler_t) (ble_nus_t * p_nus, uint8_t * p_data, uint16_t length);
 
+
+typedef void (*ble_nus_tx_complete_handler_t) (void);
+
 /**@brief Nordic UART Service initialization structure.
  *
  * @details This structure contains the initialization information for the service. The application
@@ -87,6 +90,7 @@ typedef void (*ble_nus_data_handler_t) (ble_nus_t * p_nus, uint8_t * p_data, uin
 typedef struct
 {
     ble_nus_data_handler_t data_handler; /**< Event handler to be called for handling received data. */
+    ble_nus_tx_complete_handler_t tx_complete_handler;     
 } ble_nus_init_t;
 
 /**@brief Nordic UART Service structure.
@@ -102,6 +106,7 @@ struct ble_nus_s
     uint16_t                 conn_handle;             /**< Handle of the current connection (as provided by the SoftDevice). BLE_CONN_HANDLE_INVALID if not in a connection. */
     bool                     is_notification_enabled; /**< Variable to indicate if the peer has enabled notification of the RX characteristic.*/
     ble_nus_data_handler_t   data_handler;            /**< Event handler to be called for handling received data. */
+    ble_nus_tx_complete_handler_t tx_complete_handler;                  
 };
 
 /**@brief Function for initializing the Nordic UART Service.
