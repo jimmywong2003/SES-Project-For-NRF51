@@ -80,6 +80,8 @@
 #include "nrf_drv_saadc.h"
 #endif //ADC_PRESENT
 
+//#include "counter.h"
+
 #define NRF_LOG_MODULE_NAME "APP"
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
@@ -105,10 +107,10 @@
 #define APP_TIMER_PRESCALER             0                                           /**< Value of the RTC1 PRESCALER register. */
 #define APP_TIMER_OP_QUEUE_SIZE         4                                           /**< Size of timer operation queues. */
 
-#define BATTERY_LEVEL_MEAS_INTERVAL     APP_TIMER_TICKS(2000, APP_TIMER_PRESCALER) /**< Battery level measurement interval (ticks). This value corresponds to 120 seconds. */
+#define BATTERY_LEVEL_MEAS_INTERVAL     APP_TIMER_TICKS(1000, APP_TIMER_PRESCALER) /**< Battery level measurement interval (ticks). This value corresponds to 120 seconds. */
 
-#define MIN_CONN_INTERVAL               MSEC_TO_UNITS(20, UNIT_1_25_MS)             /**< Minimum acceptable connection interval (20 ms), Connection interval uses 1.25 ms units. */
-#define MAX_CONN_INTERVAL               MSEC_TO_UNITS(75, UNIT_1_25_MS)             /**< Maximum acceptable connection interval (75 ms), Connection interval uses 1.25 ms units. */
+#define MIN_CONN_INTERVAL               MSEC_TO_UNITS(7.5, UNIT_1_25_MS)             /**< Minimum acceptable connection interval (20 ms), Connection interval uses 1.25 ms units. */
+#define MAX_CONN_INTERVAL               MSEC_TO_UNITS(7.5, UNIT_1_25_MS)             /**< Maximum acceptable connection interval (75 ms), Connection interval uses 1.25 ms units. */
 #define SLAVE_LATENCY                   0                                           /**< Slave latency. */
 #define CONN_SUP_TIMEOUT                MSEC_TO_UNITS(4000, UNIT_10_MS)             /**< Connection supervisory timeout (4 seconds), Supervision Timeout uses 10 ms units. */
 #define FIRST_CONN_PARAMS_UPDATE_DELAY  APP_TIMER_TICKS(5000, APP_TIMER_PRESCALER)  /**< Time from initiating event (connect or start of notification) to first time sd_ble_gap_conn_param_update is called (5 seconds). */
@@ -145,7 +147,8 @@ static ble_bas_t  m_bas;                                    /**< Structure used 
 
 APP_TIMER_DEF(m_battery_timer_id);        
 
-static uint8_t dataBuffer[256] = { \
+#define TEST_DATA_BUFFER_LEN  256
+static uint8_t dataBuffer[TEST_DATA_BUFFER_LEN] = { \
 	0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,	\
 	0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F,	\
 	0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F,	\
@@ -165,8 +168,10 @@ static uint8_t dataBuffer[256] = { \
 	0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x5A, 0x5B, 0x5C, 0x5D, 0x5E, 0x5F,	\
 	0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6A, 0x6B, 0x6C, 0x6D, 0x6E, 0x6F,	\
 	0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x7A, 0x7B, 0x7C, 0x7D, 0x7E, 0x7F,	\
-
 };
+
+static uint32_t m_tx_data_sent = 0;
+static uint32_t m_tx_second_sent = 0;
 
 /**@brief Macro to convert the result of ADC conversion in millivolts.
  *
@@ -213,7 +218,7 @@ void adc_event_handler(nrf_drv_adc_evt_t const * p_event)
                                   DIODE_FWD_VOLT_DROP_MILLIVOLTS;
         percentage_batt_lvl = battery_level_in_percent(batt_lvl_in_milli_volts);
 
-        NRF_LOG_INFO("Battery ADC value in Percentage %03d%%\n", percentage_batt_lvl);
+        NRF_LOG_DEBUG("Battery ADC value in Percentage %03d%%\n", percentage_batt_lvl);
         err_code = ble_bas_battery_level_update(&m_bas, percentage_batt_lvl);
         if (
             (err_code != NRF_SUCCESS)
@@ -330,6 +335,25 @@ static void battery_level_meas_timeout_handler(void * p_context)
     err_code = nrf_drv_saadc_sample();
     APP_ERROR_CHECK(err_code);
     #endif // ADC_PRESENT
+
+//    uint32_t previous_data_sent = m_tx_data_sent;
+    //m_tx_second_sent;
+
+//            uint32_t time_ms   = 1000;
+//            uint32_t bit_count = ( m_tx_second_sent* 8);
+//            float throughput   = (((float)(bit_count * 100) / time_ms) / 1024);
+//
+//            NRF_LOG_INFO("Done.\r\n\r\n");
+//            NRF_LOG_INFO("=============================\r\n");
+////            NRF_LOG_INFO("Time: %u.%.2u seconds elapsed.\r\n",
+////                         (counter_get() / 100), (counter_get() % 100));
+//            NRF_LOG_INFO("Throughput: " NRF_LOG_FLOAT_MARKER " Kbits/s.\r\n",
+//                         NRF_LOG_FLOAT(throughput));
+//
+//m_tx_second_sent = 0;
+
+    NRF_LOG_INFO("m_tx_data_sent = %d\n", m_tx_data_sent);
+
 }
 
 
@@ -401,11 +425,18 @@ static void nus_data_handler(ble_nus_t * p_nus, uint8_t * p_data, uint16_t lengt
 }
 /**@snippet [Handling the data received over BLE] */
 
+
+
+
 static void nus_tx_data_complete_handler(void)
 {
-    NRF_LOG_INFO("Data is sent completely");
+    //NRF_LOG_INFO("Data is sent completely %d\n",     NRF_RTC1->COUNTER);
     ret_code_t err_code = ble_nus_send_file(&m_nus, dataBuffer, 256, 20);
     APP_ERROR_CHECK(err_code);
+    m_tx_data_sent += TEST_DATA_BUFFER_LEN;
+    m_tx_second_sent += TEST_DATA_BUFFER_LEN;
+
+//    nrf_rtc_counter_get();
 }
 
 /**@brief Function for initializing Battery Service.
@@ -594,7 +625,6 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
             err_code = bsp_indication_set(BSP_INDICATE_CONNECTED);
             APP_ERROR_CHECK(err_code);
             m_conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
-
 
             NRF_LOG_INFO("BLE Connected with Handle = %x\n", m_conn_handle);
             break; // BLE_GAP_EVT_CONNECTED
@@ -806,7 +836,8 @@ void bsp_event_handler(bsp_event_t event)
         case BSP_EVENT_KEY_1:
             {
                     printf("Press Key 1\n");
-                                // Send 256 bytes with MTU = 23 (each packet payload is 20 bytes).
+                    m_tx_data_sent = 0;
+                    // Send 256 bytes with MTU = 23 (each packet payload is 20 bytes).
                     err_code = ble_nus_send_file(&m_nus, dataBuffer, 256, 20);
                     APP_ERROR_CHECK(err_code);
             }

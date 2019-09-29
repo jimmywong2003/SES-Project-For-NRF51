@@ -42,6 +42,10 @@
 #include "ble_nus.h"
 #include "ble_srv_common.h"
 
+#define NRF_LOG_MODULE_NAME "BLE_NUS"
+#include "nrf_log.h"
+#include "nrf_log_ctrl.h"
+
 #define BLE_UUID_NUS_TX_CHARACTERISTIC 0x0002                      /**< The UUID of the TX Characteristic. */
 #define BLE_UUID_NUS_RX_CHARACTERISTIC 0x0003                      /**< The UUID of the RX Characteristic. */
 
@@ -300,6 +304,7 @@ void ble_nus_on_ble_evt(ble_nus_t * p_nus, ble_evt_t * p_ble_evt)
 
         case BLE_EVT_TX_COMPLETE:
         {
+                NRF_LOG_DEBUG("Complete m_tx_packet_count = %d\n", m_tx_packet_count);
                 if(file_size > 0)
                 {
                         push_data_packets();
@@ -309,7 +314,9 @@ void ble_nus_on_ble_evt(ble_nus_t * p_nus, ble_evt_t * p_ble_evt)
                 {
                     m_tx_packet_count--;
                 }
-                else
+
+
+                if (m_tx_packet_count == 0)
                 {
                       if (p_nus->tx_complete_handler != NULL)
                       {
@@ -441,6 +448,7 @@ uint32_t ble_nus_send_file(ble_nus_t * p_nus, uint8_t * p_data, uint32_t data_le
         {
               m_tx_packet_count++;
         }
+        NRF_LOG_DEBUG("m_tx_packet_count = %d", m_tx_packet_count);
 
         err_code = push_data_packets();
 
