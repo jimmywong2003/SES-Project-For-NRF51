@@ -98,7 +98,7 @@
 #define CENTRAL_LINK_COUNT              0                                           /**< Number of central links used by the application. When changing this number remember to adjust the RAM settings*/
 #define PERIPHERAL_LINK_COUNT           1                                           /**< Number of peripheral links used by the application. When changing this number remember to adjust the RAM settings*/
 
-#define DEVICE_NAME                     "Nordic_UART"                               /**< Name of device. Will be included in the advertising data. */
+#define DEVICE_NAME                     "51824UART"                               /**< Name of device. Will be included in the advertising data. */
 #define NUS_SERVICE_UUID_TYPE           BLE_UUID_TYPE_VENDOR_BEGIN                  /**< UUID type for the Nordic UART Service (vendor specific). */
 
 #define APP_ADV_INTERVAL                64                                          /**< The advertising interval (in units of 0.625 ms. This value corresponds to 40 ms). */
@@ -110,9 +110,10 @@
 #define BATTERY_LEVEL_MEAS_INTERVAL     APP_TIMER_TICKS(1000, APP_TIMER_PRESCALER) /**< Battery level measurement interval (ticks). This value corresponds to 120 seconds. */
 
 #define MIN_CONN_INTERVAL               MSEC_TO_UNITS(7.5, UNIT_1_25_MS)             /**< Minimum acceptable connection interval (20 ms), Connection interval uses 1.25 ms units. */
-#define MAX_CONN_INTERVAL               MSEC_TO_UNITS(7.5, UNIT_1_25_MS)             /**< Maximum acceptable connection interval (75 ms), Connection interval uses 1.25 ms units. */
+#define MAX_CONN_INTERVAL               MSEC_TO_UNITS(15.0,  UNIT_1_25_MS)             /**< Maximum acceptable connection interval (75 ms), Connection interval uses 1.25 ms units. */
 #define SLAVE_LATENCY                   0                                           /**< Slave latency. */
-#define CONN_SUP_TIMEOUT                MSEC_TO_UNITS(4000, UNIT_10_MS)             /**< Connection supervisory timeout (4 seconds), Supervision Timeout uses 10 ms units. */
+#define CONN_SUP_TIMEOUT                MSEC_TO_UNITS(6000, UNIT_10_MS)             /**< Connection supervisory timeout (4 seconds), Supervision Timeout uses 10 ms units. */
+
 #define FIRST_CONN_PARAMS_UPDATE_DELAY  APP_TIMER_TICKS(5000, APP_TIMER_PRESCALER)  /**< Time from initiating event (connect or start of notification) to first time sd_ble_gap_conn_param_update is called (5 seconds). */
 #define NEXT_CONN_PARAMS_UPDATE_DELAY   APP_TIMER_TICKS(30000, APP_TIMER_PRESCALER) /**< Time between each call to sd_ble_gap_conn_param_update after the first call (30 seconds). */
 #define MAX_CONN_PARAMS_UPDATE_COUNT    3                                           /**< Number of attempts before giving up the connection parameter negotiation. */
@@ -147,7 +148,11 @@ static ble_bas_t  m_bas;                                    /**< Structure used 
 
 APP_TIMER_DEF(m_battery_timer_id);        
 
-#define TEST_DATA_BUFFER_LEN  256
+
+#define TEST_DATA_TOTAL_SIZE  0x10000
+static uint32_t m_tx_start_send_ticks = 0;
+
+#define TEST_DATA_BUFFER_LEN  0x100
 static uint8_t dataBuffer[TEST_DATA_BUFFER_LEN] = { \
 	0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,	\
 	0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F,	\
@@ -172,6 +177,10 @@ static uint8_t dataBuffer[TEST_DATA_BUFFER_LEN] = { \
 
 static uint32_t m_tx_data_sent = 0;
 static uint32_t m_tx_second_sent = 0;
+static bool m_tx_is_sending = false;
+
+
+
 
 /**@brief Macro to convert the result of ADC conversion in millivolts.
  *
@@ -336,22 +345,6 @@ static void battery_level_meas_timeout_handler(void * p_context)
     APP_ERROR_CHECK(err_code);
     #endif // ADC_PRESENT
 
-//    uint32_t previous_data_sent = m_tx_data_sent;
-    //m_tx_second_sent;
-
-//            uint32_t time_ms   = 1000;
-//            uint32_t bit_count = ( m_tx_second_sent* 8);
-//            float throughput   = (((float)(bit_count * 100) / time_ms) / 1024);
-//
-//            NRF_LOG_INFO("Done.\r\n\r\n");
-//            NRF_LOG_INFO("=============================\r\n");
-////            NRF_LOG_INFO("Time: %u.%.2u seconds elapsed.\r\n",
-////                         (counter_get() / 100), (counter_get() % 100));
-//            NRF_LOG_INFO("Throughput: " NRF_LOG_FLOAT_MARKER " Kbits/s.\r\n",
-//                         NRF_LOG_FLOAT(throughput));
-//
-//m_tx_second_sent = 0;
-
     NRF_LOG_INFO("m_tx_data_sent = %d\n", m_tx_data_sent);
 
 }
@@ -430,12 +423,35 @@ static void nus_data_handler(ble_nus_t * p_nus, uint8_t * p_data, uint16_t lengt
 
 static void nus_tx_data_complete_handler(void)
 {
-    //NRF_LOG_INFO("Data is sent completely %d\n",     NRF_RTC1->COUNTER);
-    ret_code_t err_code = ble_nus_send_file(&m_nus, dataBuffer, 256, 20);
-    APP_ERROR_CHECK(err_code);
-    m_tx_data_sent += TEST_DATA_BUFFER_LEN;
-    m_tx_second_sent += TEST_DATA_BUFFER_LEN;
+    if (m_tx_is_sending == true)
+    {
+        m_tx_data_sent += TEST_DATA_BUFFER_LEN;
+        m_tx_second_sent += TEST_DATA_BUFFER_LEN;
+        if (m_tx_data_sent >= TEST_DATA_TOTAL_SIZE)
+        {
+            uint32_t time_ms   = (NRF_RTC1->COUNTER - m_tx_start_send_ticks)/32.768;
+            uint32_t bit_count = ( TEST_DATA_TOTAL_SIZE * 8 );
+            float throughput_kbps = ((bit_count / (time_ms / 1000.f)) / 1000.f);
 
+            NRF_LOG_INFO("Done.\r\n\r\n");
+            NRF_LOG_INFO("=============================\r\n");
+            NRF_LOG_INFO("Time: %u.%.2u seconds elapsed.\r\n",
+                         (time_ms / 1000), (time_ms % 1000));
+            NRF_LOG_INFO("Throughput: " NRF_LOG_FLOAT_MARKER " kbits/s.\r\n",
+                         NRF_LOG_FLOAT(throughput_kbps));
+
+
+            m_tx_is_sending = false;
+        }
+        else
+        {
+            //NRF_LOG_INFO("Data is sent completely %d\n",     NRF_RTC1->COUNTER);
+            ret_code_t err_code = ble_nus_send_file(&m_nus, dataBuffer, 256, 20);
+            APP_ERROR_CHECK(err_code);
+        }
+    }
+
+    
 //    nrf_rtc_counter_get();
 }
 
@@ -526,10 +542,15 @@ static void on_conn_params_evt(ble_conn_params_evt_t * p_evt)
 {
     uint32_t err_code;
 
+    
     if (p_evt->evt_type == BLE_CONN_PARAMS_EVT_FAILED)
     {
         err_code = sd_ble_gap_disconnect(m_conn_handle, BLE_HCI_CONN_INTERVAL_UNACCEPTABLE);
         APP_ERROR_CHECK(err_code);
+    }
+    else if (p_evt->evt_type == BLE_CONN_PARAMS_EVT_SUCCEEDED)
+    {
+        NRF_LOG_INFO("Parameter Update Success\n");
     }
 }
 
@@ -558,7 +579,7 @@ static void conn_params_init(void)
     cp_init.next_conn_params_update_delay  = NEXT_CONN_PARAMS_UPDATE_DELAY;
     cp_init.max_conn_params_update_count   = MAX_CONN_PARAMS_UPDATE_COUNT;
     cp_init.start_on_notify_cccd_handle    = BLE_GATT_HANDLE_INVALID;
-    cp_init.disconnect_on_fail             = false;
+    cp_init.disconnect_on_fail             = true;
     cp_init.evt_handler                    = on_conn_params_evt;
     cp_init.error_handler                  = conn_params_error_handler;
 
@@ -628,18 +649,35 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
 
             NRF_LOG_INFO("BLE Connected with Handle = %x\n", m_conn_handle);
             break; // BLE_GAP_EVT_CONNECTED
+
         case BLE_GAP_EVT_DISCONNECTED:
             err_code = bsp_indication_set(BSP_INDICATE_IDLE);
             APP_ERROR_CHECK(err_code);
             m_conn_handle = BLE_CONN_HANDLE_INVALID;
             
             NRF_LOG_INFO("BLE Disconnection\n");
+
+            m_tx_is_sending = false;
             break; // BLE_GAP_EVT_DISCONNECTED
 
 
         case BLE_EVT_TX_COMPLETE:
 
             break; // BLE_EVT_TX_COMPLETE
+
+        case BLE_GAP_EVT_CONN_PARAM_UPDATE:
+            NRF_LOG_INFO("BLE_GAP_EVT_CONN_PARAM_UPDATE\n");
+            {
+                  static ble_gap_conn_params_t  m_current_conn_params;    /**< Connection parameters received in the most recent Connect event. */
+                  m_current_conn_params = p_ble_evt->evt.gap_evt.params.conn_param_update.conn_params;
+                  NRF_LOG_HEXDUMP_INFO(&m_current_conn_params, sizeof(ble_gap_conn_params_t));
+            }
+            
+            break;
+
+        case BLE_GAP_EVT_CONN_PARAM_UPDATE_REQUEST:
+            NRF_LOG_INFO("BLE_GAP_EVT_CONN_PARAM_UPDATE_REQUEST\n");
+            break;
 
         case BLE_GAP_EVT_SEC_PARAMS_REQUEST:
             // Pairing not supported
@@ -755,6 +793,10 @@ static void sys_evt_dispatch(uint32_t sys_evt)
 }
 
 
+#define NRF_CLOCK_LOCAL_LFCLKSRC      {.source        = NRF_CLOCK_LF_SRC_RC,            \
+                                 .rc_ctiv       = 16,                                \
+                                 .rc_temp_ctiv  = 16,                                \
+                                 .xtal_accuracy = NRF_CLOCK_LF_XTAL_ACCURACY_100_PPM}
 
 /**@brief Function for the SoftDevice initialization.
  *
@@ -764,7 +806,8 @@ static void ble_stack_init(void)
 {
     uint32_t err_code;
 
-    nrf_clock_lf_cfg_t clock_lf_cfg = NRF_CLOCK_LFCLKSRC;
+
+    nrf_clock_lf_cfg_t clock_lf_cfg = NRF_CLOCK_LOCAL_LFCLKSRC;
 
     // Initialize SoftDevice.
     SOFTDEVICE_HANDLER_INIT(&clock_lf_cfg, NULL);
@@ -834,14 +877,26 @@ void bsp_event_handler(bsp_event_t event)
             break;
 
         case BSP_EVENT_KEY_1:
+            if ((m_conn_handle != BLE_CONN_HANDLE_INVALID) && m_tx_is_sending == false)
             {
                     printf("Press Key 1\n");
                     m_tx_data_sent = 0;
+                    for (int i=0; i < 256; i++)
+                    {
+                          dataBuffer[i] = i % 0x10;
+                    }
+                    m_tx_start_send_ticks = NRF_RTC1->COUNTER;
                     // Send 256 bytes with MTU = 23 (each packet payload is 20 bytes).
                     err_code = ble_nus_send_file(&m_nus, dataBuffer, 256, 20);
                     APP_ERROR_CHECK(err_code);
+                    m_tx_is_sending = true;
             }
             break;
+        case BSP_EVENT_KEY_2:
+            m_tx_is_sending = false;
+
+            break;
+
         default:
             break;
     }

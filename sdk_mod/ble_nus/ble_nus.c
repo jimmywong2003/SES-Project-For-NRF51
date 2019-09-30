@@ -106,6 +106,7 @@ static void on_write(ble_nus_t * p_nus, ble_evt_t * p_ble_evt)
         if (ble_srv_is_notification_enabled(p_evt_write->data))
         {
             p_nus->is_notification_enabled = true;
+            NRF_LOG_INFO("BLE NUS : Notification is Enabled\n");
         }
         else
         {
@@ -421,7 +422,7 @@ uint32_t ble_nus_send_file(ble_nus_t * p_nus, uint8_t * p_data, uint32_t data_le
                 err_code = NRF_ERROR_INVALID_STATE;
                 VERIFY_SUCCESS(err_code);
                 return NRF_ERROR_INVALID_STATE;
-}
+        }
 
         if(file_size != 0)
         {
